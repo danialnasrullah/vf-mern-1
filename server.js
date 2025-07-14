@@ -1,5 +1,9 @@
 const express = require('express');
+const morgan = require('morgan');
+const mongoose = require('mongoose');
+const Bootcamp = require('./models/Bootcamp');
 const app = express();
+
 require('dotenv').config();
 
 const port = process.env.PORT || 3000;
@@ -7,59 +11,99 @@ const port = process.env.PORT || 3000;
 // Middleware to serve static files (optional)
 app.use(express.json());
 
+// Middleware for logging requests
+app.use(morgan('dev'));
+
+
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.log('MongoDB connection error:', err));
+
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+
 // Basic route
 app.get('/', (req, res) => {
   res.send('Hello, Worrld!');
 });
 
 
-// Dummy Bootcamps Array (simulating a database)
-let bootcamps = [
-  { id: 1, name: 'Code Academy', location: 'Online', description: 'Learn to code in 12 weeks', website: 'https://codeacademy.com' },
-  { id: 2, name: 'Tech Bootcamp', location: 'NYC', description: 'Intensive tech training program', website: 'https://techbootcamp.com' },
-];
 
-// 1. **Create Bootcamp** (POST)
-app.post('/api/bootcamps', (req, res) => {
-  const { name, location, description, website } = req.body;
-  const newBootcamp = { id: bootcamps.length + 1, name, location, description, website };
-  bootcamps.push(newBootcamp);
-  res.status(201).json(newBootcamp);  // Send the new bootcamp as response
+// Create Bootcamp (POST)
+app.post('/api/bootcamps', async (req, res) => {
+  try {
+    const { name, location, description, website } = req.body;
+
+    // Create a new Bootcamp
+    const newBootcamp = new Bootcamp({
+      name,
+      location,
+      description,
+      website
+    });
+
+    // Save the Bootcamp to the database
+    await newBootcamp.save();
+
+    res.status(201).json(newBootcamp);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
-// 2. **Get All Bootcamps** (GET)
-app.get('/api/bootcamps', (req, res) => {
-  res.json(bootcamps);
+// Get All Bootcamps (GET)
+app.get('/api/bootcamps', async (req, res) => {
+  try {
+    const bootcamps = await Bootcamp.find();
+    res.json(bootcamps);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// 3. **Get Bootcamp by ID** (GET)
-app.get('/api/bootcamps/:id', (req, res) => {
-  const bootcamp = bootcamps.find(b => b.id === parseInt(req.params.id));
-  if (!bootcamp) return res.status(404).json({ message: 'Bootcamp not found' });
-  res.json(bootcamp);
+// Get Bootcamp by ID (GET)
+app.get('/api/bootcamps/:id', async (req, res) => {
+  try {
+    const bootcamp = await Bootcamp.findById(req.params.id);
+    if (!bootcamp) {
+      return res.status(404).json({ message: 'Bootcamp not found' });
+    }
+    res.json(bootcamp);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
-// 4. **Update Bootcamp** (PUT)
-app.put('/api/bootcamps/:id', (req, res) => {
-  const bootcamp = bootcamps.find(b => b.id === parseInt(req.params.id));
-  if (!bootcamp) return res.status(404).json({ message: 'Bootcamp not found' });
 
-  const { name, location, description, website } = req.body;
-  bootcamp.name = name || bootcamp.name;
-  bootcamp.location = location || bootcamp.location;
-  bootcamp.description = description || bootcamp.description;
-  bootcamp.website = website || bootcamp.website;
-
-  res.json(bootcamp);  // Send the updated bootcamp as response
+// Update Bootcamp (PUT)
+app.put('/api/bootcamps/:id', async (req, res) => {
+  try {
+    const bootcamp = await Bootcamp.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!bootcamp) {
+      return res.status(404).json({ message: 'Bootcamp not found' });
+    }
+    res.json(bootcamp);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
-// 5. **Delete Bootcamp** (DELETE)
-app.delete('/api/bootcamps/:id', (req, res) => {
-  const bootcampIndex = bootcamps.findIndex(b => b.id === parseInt(req.params.id));
-  if (bootcampIndex === -1) return res.status(404).json({ message: 'Bootcamp not found' });
 
-  bootcamps.splice(bootcampIndex, 1);  // Remove the bootcamp from the array
-  res.status(204).send();  // No content to return
+// Delete Bootcamp (DELETE)
+app.delete('/api/bootcamps/:id', async (req, res) => {
+  try {
+    const bootcamp = await Bootcamp.findByIdAndDelete(req.params.id);
+    if (!bootcamp) {
+      return res.status(404).json({ message: 'Bootcamp not found' });
+    }
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
 });
 
 
